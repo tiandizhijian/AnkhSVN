@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
   <!-- Import the SDK Manually, to allow including the VSTools later -->
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.props" Condition="('$(VSToolsPath)' != '') And Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.props')" />
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
@@ -7,6 +7,29 @@
     <UseWindowsForms>true</UseWindowsForms>
     <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>Ankh.Package.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <!-- Resources.Designer.cs uses ResourceManager base name "Ankh.VSPackage.Resources"
+       (note: VSPackage, not Package), so the resource must be embedded under that
+       exact name. The SDK default would name it "Ankh.Package.Resources.resources"
+       (RootNamespace is Ankh.Package), which the ResourceManager cannot find at
+       runtime, raising MissingManifestResourceException. -->
+  <ItemGroup>
+    <EmbeddedResource Update="Resources.resx">
+      <LogicalName>Ankh.VSPackage.Resources.resources</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- VS2026 (and VS2022) run as 64-bit processes. The default SharpSvn NuGet
+       package pulls a 32-bit mixed-mode SharpSvn.dll, which fails to load in
+       64-bit devenv with BadImageFormatException, surfacing through the
+       package loader as ReflectionTypeLoadException (HRESULT 0x80131602).
+       Pin the runtime to win-x64 so NuGet selects the 64-bit SharpSvn.dll,
+       and tell SharpSvn's own targets to copy the x64 native dependencies. -->
+  <PropertyGroup>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <SharpSvnPlatform>AMD64</SharpSvnPlatform>
   </PropertyGroup>
   <PropertyGroup>
     <RegisterOutputPackage>true</RegisterOutputPackage>
@@ -69,6 +92,29 @@
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
   </ItemGroup>
+
+  <!-- SharpSvn.dll is a C++/CLI mixed-mode assembly that ships native
+       dependencies (.svnDll/.svnExe, non-standard extensions). The SharpSvn
+       NuGet package only *copies* these to OutDir via its own targets file;
+       they are not part of RuntimeCopyLocalItems, so VSSDK's
+       IncludeNuGetDependenciesInVsix target silently skips them and the VSIX
+       installs without them. Loading SharpSvn.dll then fails in 64-bit VS.
+       The @(SharpSvnExternalFiles) item the SharpSvn targets populates matches
+       SharpSvnPlatform; promote it to VSIX content. Use a target so the
+       include runs *after* SharpSvn's targets import the item. Skip the
+       SharpSvn.xml doc file (not needed at runtime). -->
+  <Target Name="IncludeSharpSvnNativeInVsix" BeforeTargets="FindSourceVsixManifest;IncludeNuGetDependenciesInVsix">
+    <ItemGroup>
+      <SharpSvnNativeFiles Include="@(SharpSvnExternalFiles)"
+                          Condition="'%(Extension)' == '.svnDll' Or '%(Extension)' == '.svnExe'" />
+      <Content Include="@(SharpSvnNativeFiles)">
+        <Link>%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <IncludeInVSIX>true</IncludeInVSIX>
+        <Visible>false</Visible>
+      </Content>
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <Compile Remove="AnkhSvnPackage.AsyncPackage.cs" Condition="'$(UseVsSdkVersion)' &lt; '15.0'" />
     <Compile Remove="AnkhSvnPackage.LegacyPackage.cs" Condition="'$(UseVsSdkVersion)' &gt;= '15.0'" />

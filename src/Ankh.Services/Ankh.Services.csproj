@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
@@ -13,6 +13,17 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
+  </ItemGroup>
+
+  <!-- PendingChangeText.Designer.cs uses ResourceManager base name "Ankh.Scc.PendingChangeText"
+       (no .Services segment), so the resource must be embedded under that exact name.
+       The SDK default would name it "Ankh.Services.Scc.PendingChangeText.resources"
+       (RootNamespace is Ankh.Services), which the ResourceManager cannot find at
+       runtime, raising MissingManifestResourceException. -->
+  <ItemGroup>
+    <EmbeddedResource Update="Scc\PendingChangeText.resx">
+      <LogicalName>Ankh.Scc.PendingChangeText.resources</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ankh.ExtensionPoints\Ankh.ExtensionPoints.csproj" />
